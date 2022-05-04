@@ -18,9 +18,12 @@ import (
 )
 
 //Обьявляем глобально, т.к. надо этот файл удалять из разных мест
-var Env_file_name string
+var (
+	EnvFileName string
+	srvData     env_server_file.EnvServerFile
+)
 
-func get_free_port() (uint16, bool) {
+func getFreePort() (uint16, bool) {
 
 	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
 	if err != nil {
@@ -35,60 +38,77 @@ func get_free_port() (uint16, bool) {
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
 
-	ln.Close()
+	if err = ln.Close(); err != nil {
+		fmt.Printf("can't close listener: %v\n", err)
+		return 0, true
+	}
 
 	return uint16(port), false
 }
 
 func quitme(_ http.ResponseWriter, _ *http.Request) {
-	os.Remove(Env_file_name)
+	if err := os.Remove(EnvFileName); err != nil {
+		os.Exit(1)
+	}
 	os.Exit(0)
 }
 
-func checkcmd_and_exec(w http.ResponseWriter, req *http.Request, Srv_data *env_server_file.Env_server_file) {
+func checkCmdAndExec(w http.ResponseWriter, req *http.Request, srvData *env_server_file.EnvServerFile) {
 	token := req.URL.Query().Get("token")
 	if token == "" {
-		fmt.Fprintf(w, "cmd_error_access1")
+		if _, err := fmt.Fprintf(w, "cmd_error_access1"); err != nil {
+			fmt.Println(err)
+		}
 		return
 	}
 
-	if token != Srv_data.Usertoken {
-		fmt.Fprintf(w, "cmd_error_access2")
+	if token != srvData.UserToken {
+		if _, err := fmt.Fprintf(w, "cmd_error_access2"); err != nil {
+			fmt.Println(err)
+		}
 		return
 	}
 	//Из урла достаем параметр cmd
 	cmd := req.URL.Query().Get("cmd")
 	if cmd == "" {
-		fmt.Fprintf(w, "cmd_error")
+		if _, err := fmt.Fprintf(w, "cmd_error"); err != nil {
+			fmt.Println(err)
+		}
 		fmt.Println("cmd_error_url.query")
 		return
 	}
 	//Декодируем его из base64
 	cmdtmp, err := base64.RawStdEncoding.DecodeString(cmd)
 	if err != nil {
-		fmt.Fprintf(w, "cmd_error")
-		fmt.Printf("cmd_error_encode=%s", cmd)
+		if _, err = fmt.Fprintf(w, "cmd_error"); err != nil {
+			fmt.Println(err)
+		}
+		if _, err = fmt.Printf("cmd_error_encode=%s", cmd); err != nil {
+			fmt.Println(err)
+		}
 		return
 	}
 	cmd = string(cmdtmp)
 	fmt.Printf("decoded_cmd=%s\n", cmd)
 	//Разбиваем строку на аргументы
-	cmd_splitted := csv.NewReader(strings.NewReader(cmd))
-	cmd_splitted.Comma = ' ' // space
-	args, err := cmd_splitted.Read()
+	cmdSplitted := csv.NewReader(strings.NewReader(cmd))
+	cmdSplitted.Comma = ' ' // space
+	args, err := cmdSplitted.Read()
 	if err != nil {
-		fmt.Fprintf(w, "cmd_error")
+		if _, err = fmt.Fprintf(w, "cmd_error"); err != nil {
+			fmt.Println(err)
+		}
 		return
 	}
 
 	//fmt.Printf(string(args[0]))
 	//fmt.Printf(cmd)
 	//Исполняем и возвращяем результат из stdio и exit code
-	test_bash := req.URL.Query().Get("bash")
+	testBash := req.URL.Query().Get("bash")
 
 	var cmdtest *exec.Cmd
 
-	if test_bash == "" {
+	if testBash == "" {
 		cmdtest1 := exec.Command(args[0], args[1:]...)
 		cmdtest = cmdtest1
 	} else {
@@ -97,22 +117,22 @@ func checkcmd_and_exec(w http.ResponseWriter, req *http.Request, Srv_data *env_s
 	}
 
 	out, _ := cmdtest.CombinedOutput()
-	res := cmd_query.Cmd_result{}
-	res.Cmd_stdout = string(out)
-	res.Error_code = uint(cmdtest.ProcessState.ExitCode())
+	res := cmd_query.CmdResult{}
+	res.CmdStdout = string(out)
+	res.ErrorCode = uint(cmdtest.ProcessState.ExitCode())
 
-	res_json, _ := json.Marshal(res)
-	fmt.Fprintf(w, "%s", string(res_json))
+	resJson, _ := json.Marshal(res)
+	if _, err = fmt.Fprintf(w, "%s", string(resJson)); err != nil {
+		fmt.Println(err)
+	}
 }
 
 func main() {
-	var Srv_data env_server_file.Env_server_file
-
 	//Генерим uuid
-	usertoken_b, _ := ioutil.ReadFile("/proc/sys/kernel/random/uuid")
+	usertokenB, _ := ioutil.ReadFile("/proc/sys/kernel/random/uuid")
 	//Ищём свободный порт
-	_web_port, is_err := get_free_port()
-	if is_err {
+	webPort, isErr := getFreePort()
+	if isErr {
 		fmt.Printf("can't open tcp port\n")
 		os.Exit(1)
 	}
@@ -120,10 +140,10 @@ func main() {
 	//Пишем файл в окружении пользователя
 	//$XDG_RUNTIME_DIR/lscmd
 	//Убираем символ конца строки 0x10
-	Srv_data.Usertoken = string(usertoken_b[:len(usertoken_b)-1])
-	Srv_data.Web_port = _web_port
+	srvData.UserToken = string(usertokenB[:len(usertokenB)-1])
+	srvData.WebPort = webPort
 	var err error
-	Env_file_name, err = Srv_data.Write()
+	EnvFileName, err = srvData.Write()
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
@@ -136,21 +156,27 @@ func main() {
 	go func() {
 		sig := <-sigs
 		fmt.Println(sig)
-		os.Remove(Env_file_name)
+		if err := os.Remove(EnvFileName); err != nil {
+			os.Exit(1)
+		}
 		os.Exit(0)
 	}()
 
 	//Запускаем веб сервер
 	http.HandleFunc("/exec", func(w http.ResponseWriter, req *http.Request) {
-		checkcmd_and_exec(w, req, &Srv_data)
+		checkCmdAndExec(w, req, &srvData)
 	})
 	http.HandleFunc("/quit", quitme)
 
-	fmt.Printf("%v\n", Srv_data.Web_port)
-	fmt.Println(string(Srv_data.Usertoken))
-	http.ListenAndServe(":"+fmt.Sprint(Srv_data.Web_port), nil)
+	fmt.Printf("%v\n", srvData.WebPort)
+	fmt.Println(string(srvData.UserToken))
+	if err = http.ListenAndServe(":"+fmt.Sprint(srvData.WebPort), nil); err != nil {
+		panic(err)
+	}
 
 	defer func() {
-		os.Remove(Env_file_name)
+		if err := os.Remove(EnvFileName); err != nil {
+			os.Exit(1)
+		}
 	}()
 }

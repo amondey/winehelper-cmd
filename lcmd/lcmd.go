@@ -14,7 +14,7 @@ import (
 	env_server_file "winehelper-cmd/pkg/env-server-file"
 )
 
-func run_lscmd() {
+func runLscmd() {
 	cmd := exec.Command("start", "/unix", "/usr/sbin/winehelper_lscmd")
 	err := cmd.Run()
 	if err != nil {
@@ -31,12 +31,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	Srv_data := env_server_file.Env_server_file{}
-	err := Srv_data.Read()
+	srvData := env_server_file.EnvServerFile{}
+	err := srvData.Read()
 	if err != nil {
-		run_lscmd()
+		runLscmd()
 		time.Sleep(2 * time.Second)
-		err := Srv_data.Read()
+		err := srvData.Read()
 		if err != nil {
 			fmt.Println(err.Error())
 			fmt.Printf("error\n")
@@ -65,22 +65,22 @@ func main() {
 
 	//Если команда завернута в " то используем bash
 	//К примеру "ls -la|grep test", мы вырежем ковычки: ls -la|grep test
-	use_bash := false
+	useBash := false
 	if cmd[0] == 34 {
 		if cmd[len(cmd)-1] == 34 {
 			cmd = cmd[1 : len(cmd)-1]
-			use_bash = true
+			useBash = true
 		}
 	}
 
-	encoded_cmd := base64.RawStdEncoding.EncodeToString([]byte(cmd))
+	encodedCmd := base64.RawStdEncoding.EncodeToString([]byte(cmd))
 
 	url := fmt.Sprintf("http://localhost:%d/exec?token=%s&cmd=%s",
-		Srv_data.Web_port,
-		Srv_data.Usertoken,
-		encoded_cmd)
+		srvData.WebPort,
+		srvData.UserToken,
+		encodedCmd)
 
-	if use_bash {
+	if useBash {
 		url += "&bash=true"
 	}
 
@@ -92,11 +92,13 @@ func main() {
 
 	result, _ := ioutil.ReadAll(resp.Body)
 
-	result_json := cmd_query.Cmd_result{}
-	json.Unmarshal(result, &result_json)
-	fmt.Println(string(result_json.Cmd_stdout))
+	resultJson := cmd_query.CmdResult{}
+	if err = json.Unmarshal(result, &resultJson); err != nil {
+		os.Exit(-1)
+	}
+	fmt.Println(string(resultJson.CmdStdout))
 
 	//url = fmt.Sprintf("http://localhost:%d/quit", marker_data.Web_port)
 	//http.Get(url)
-	os.Exit(int(result_json.Error_code))
+	os.Exit(int(resultJson.ErrorCode))
 }
