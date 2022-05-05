@@ -10,30 +10,30 @@ import (
 	"strings"
 )
 
-type Env_server_file struct {
-	Usertoken string `json:"usertoken"`
-	Web_port  uint16 `json:"web_port"`
+type EnvServerFile struct {
+	UserToken string `json:"usertoken"`
+	WebPort   uint16 `json:"web_port"`
 }
 
-func (esf *Env_server_file) Write_file(filepath string) error {
-	marker_data_file, err := json.Marshal(esf)
+func (esf *EnvServerFile) WriteFile(filepath string) error {
+	markerDataFile, err := json.Marshal(esf)
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(filepath, marker_data_file, 0600)
+	err = ioutil.WriteFile(filepath, markerDataFile, 0600)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (esf *Env_server_file) Read_file(filepath string) error {
-	marker_data_file, err := ioutil.ReadFile(filepath)
+func (esf *EnvServerFile) ReadFile(filepath string) error {
+	markerDataFile, err := ioutil.ReadFile(filepath)
 	if err != nil {
 		fmt.Println("ReadFile")
 		return err
 	}
-	err = json.Unmarshal([]byte(marker_data_file), &esf)
+	err = json.Unmarshal(markerDataFile, &esf)
 	if err != nil {
 		fmt.Println("Unmarshal")
 		return err
@@ -41,21 +41,21 @@ func (esf *Env_server_file) Read_file(filepath string) error {
 	return nil
 }
 
-func (esf *Env_server_file) Write() (string, error) {
+func (esf *EnvServerFile) Write() (string, error) {
 	filepath, err := GetEnvFileName()
 	if err != nil {
 		return "", err
 	}
-	return filepath, esf.Write_file(filepath)
+	return filepath, esf.WriteFile(filepath)
 }
 
-func (esf *Env_server_file) Read() error {
+func (esf *EnvServerFile) Read() error {
 	filepath, err := GetEnvFileName()
 	if err != nil {
 		fmt.Println("GetEnvFileName")
 		return err
 	}
-	return esf.Read_file(filepath)
+	return esf.ReadFile(filepath)
 }
 
 func GetEnvFileName() (string, error) {
