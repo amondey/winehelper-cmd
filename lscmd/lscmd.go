@@ -68,8 +68,9 @@ func checkCmdAndExec(w http.ResponseWriter, req *http.Request, srvData *env_serv
 		}
 		return
 	}
-	//Из урла достаем параметр cmd
-	cmd := req.URL.Query().Get("cmd")
+	//Из хедера достаем параметр cmd
+	cmd := req.Header.Get("lcmd")
+
 	if cmd == "" {
 		if _, err := fmt.Fprintf(w, "cmd_error"); err != nil {
 			fmt.Println(err)
@@ -77,6 +78,7 @@ func checkCmdAndExec(w http.ResponseWriter, req *http.Request, srvData *env_serv
 		fmt.Println("cmd_error_url.query")
 		return
 	}
+
 	//Декодируем его из base64
 	cmdtmp, err := base64.RawStdEncoding.DecodeString(cmd)
 	if err != nil {
@@ -89,7 +91,7 @@ func checkCmdAndExec(w http.ResponseWriter, req *http.Request, srvData *env_serv
 		return
 	}
 	cmd = string(cmdtmp)
-	fmt.Printf("decoded_cmd=%s\n", cmd)
+	fmt.Printf("lcmd:%s\n", cmd)
 	//Разбиваем строку на аргументы
 	cmdSplitted := csv.NewReader(strings.NewReader(cmd))
 	cmdSplitted.Comma = ' ' // space
@@ -105,8 +107,10 @@ func checkCmdAndExec(w http.ResponseWriter, req *http.Request, srvData *env_serv
 	//fmt.Printf(cmd)
 	//Исполняем и возвращяем результат из stdio и exit code
 	testBash := req.URL.Query().Get("bash")
-
 	var cmdtest *exec.Cmd
+	if _, echo := fmt.Printf("bash: %s\n", testBash); err != nil {
+		fmt.Println(echo)
+	}
 
 	if testBash == "" {
 		cmdtest1 := exec.Command(args[0], args[1:]...)
@@ -117,8 +121,10 @@ func checkCmdAndExec(w http.ResponseWriter, req *http.Request, srvData *env_serv
 	}
 
 	out, _ := cmdtest.CombinedOutput()
+
 	res := cmd_query.CmdResult{}
 	res.CmdStdout = string(out)
+
 	res.ErrorCode = uint(cmdtest.ProcessState.ExitCode())
 
 	resJson, _ := json.Marshal(res)

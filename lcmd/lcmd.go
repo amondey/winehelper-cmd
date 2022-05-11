@@ -75,18 +75,26 @@ func main() {
 
 	encodedCmd := base64.RawStdEncoding.EncodeToString([]byte(cmd))
 
-	url := fmt.Sprintf("http://localhost:%d/exec?token=%s&cmd=%s",
+	url := fmt.Sprintf("http://localhost:%d/exec?token=%s",
 		srvData.WebPort,
 		srvData.UserToken,
-		encodedCmd)
+	)
 
 	if useBash {
 		url += "&bash=true"
 	}
 
-	resp, err := http.Get(url)
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		fmt.Printf("error\n")
+		fmt.Printf("error 2\n")
+		os.Exit(1)
+	}
+
+	req.Header.Add("lcmd", encodedCmd)
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("error 3\n")
 		os.Exit(1)
 	}
 
