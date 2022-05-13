@@ -16,7 +16,7 @@ import (
 
 func runLscmd() {
 	cmd := exec.Command("start", "/unix", "/usr/sbin/winehelper_lscmd")
-	err := cmd.Run()
+	err := cmd.Start()
 	if err != nil {
 		fmt.Printf("error run lscmd\n")
 		os.Exit(1)
